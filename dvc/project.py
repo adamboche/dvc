@@ -362,16 +362,23 @@ class Project(object):
             fname=Stage.STAGE_FILE,
             cwd=os.curdir,
             no_exec=False,
-            overwrite=False):
-        stage = Stage.loads(project=self,
-                            fname=fname,
-                            cmd=cmd,
-                            cwd=cwd,
-                            outs=outs,
-                            outs_no_cache=outs_no_cache,
-                            metrics_no_cache=metrics_no_cache,
-                            deps=deps,
-                            overwrite=overwrite)
+            overwrite=False,
+            deterministic=False):
+
+        with self.state:
+            stage = Stage.loads(project=self,
+                                fname=fname,
+                                cmd=cmd,
+                                cwd=cwd,
+                                outs=outs,
+                                outs_no_cache=outs_no_cache,
+                                metrics_no_cache=metrics_no_cache,
+                                deps=deps,
+                                overwrite=overwrite,
+                                deterministic=deterministic)
+
+        if stage is None:
+            return None
 
         all_stages = self.stages()
 

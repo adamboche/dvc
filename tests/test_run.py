@@ -1,5 +1,8 @@
 import os
 import filecmp
+import shlex
+import subprocess
+
 
 from dvc.main import main
 from dvc.utils import file_md5
@@ -36,7 +39,7 @@ class TestRun(TestDvc):
         self.assertEqual(len(stage.deps), len(deps))
         self.assertEqual(len(stage.outs), len(outs + outs_no_cache))
         self.assertEqual(stage.outs[0].path, outs[0])
-        self.assertEqual(stage.outs[0].md5, file_md5(self.FOO)[0])  
+        self.assertEqual(stage.outs[0].md5, file_md5(self.FOO)[0])
         self.assertTrue(stage.path, fname)
 
         with self.assertRaises(OutputDuplicationError):
@@ -173,3 +176,40 @@ class TestCmdRun(TestDvc):
 
         with open(log, 'r') as fobj:
             self.assertEqual(fobj.read(), arg)
+
+
+class TestRunDeterministic(TestDvc):
+
+    def test(self):
+
+        def _run(target, deterministic=False):
+
+            command = [
+                'dvc', 'run', '--verbose', '-f', '{}.dvc'.format(target), '-d', 'file1', '-o', target,
+                'python', '-c', shlex.quote("open('{}', 'w').write('hi')").format(target),
+            ]
+            if deterministic:
+                command.insert(2, '--deterministic')
+
+            return command
+
+
+
+
+        subprocess.check_call([
+            'dvc', 'run', '--verbose', '-f', 'f1.dvc', '-o', 'file1',
+             'bash', '-c', '"echo hi > file1"',
+        ])
+
+        subprocess.check_call(_run('file2', deterministic=True))
+
+        # Does not run because its inputs already exist.
+        subprocess.check_call(_run('file3', deterministic=True))
+
+        subprocess.check_call(_run('file4'))
+
+        self.assertTrue(os.path.exists('file1'))
+        self.assertTrue(os.path.exists('file2'))
+        self.assertTrue(os.path.exists('file4'))
+
+        self.assertFalse(os.path.exists('file3'))
